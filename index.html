@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Career Tree — система карьерного развития</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <div class="brand-logo">◈</div>
+    <div>
+      <h1>Career Tree</h1>
+      <p class="muted small">Система карьерного развития</p>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs" style="display:none">
+    <button class="tab active" data-tab="profile">Профиль</button>
+    <button class="tab" data-tab="radar">Роза навыков</button>
+    <button class="tab" data-tab="map">Карта роста</button>
+    <button class="tab" data-tab="plan">План развития</button>
+    <button class="tab" data-tab="feed">Активность</button>
+  </nav>
+  <div class="header-actions" id="header-actions" style="display:none">
+    <button class="btn btn-ghost btn-sm" id="edit-profile-btn">✎ Редактировать</button>
+    <button class="btn btn-ghost btn-sm" id="reset-btn">Выйти</button>
+  </div>
+</header>
+
+<main>
+  <section id="onboarding" class="tab-panel"></section>
+  <section id="profile" class="tab-panel"></section>
+  <section id="radar" class="tab-panel"></section>
+  <section id="map" class="tab-panel"></section>
+  <section id="plan" class="tab-panel"></section>
+  <section id="feed" class="tab-panel"></section>
+</main>
+
+<div id="modal" class="modal hidden"><div class="modal-content"></div></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
