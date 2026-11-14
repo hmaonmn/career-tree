@@ -458,7 +458,7 @@ function buildRadarSVG(skillIds, requirements, userSkills, currentGradeLevel) {
       const p = polarPoint(cx, cy, R * pct / 100, a);
       return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
     }).join(' ');
-    return `<polygon points="${pts}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>`;
+    return `<polygon points="${userPts}" fill="url(#avatarRadarGrad)" fill-opacity="0.25" stroke="#0057FF" stroke-width="2.5" stroke-linejoin="round"/>`;
   }).join('');
 
   const axes = angles.map(a => {
@@ -471,7 +471,11 @@ function buildRadarSVG(skillIds, requirements, userSkills, currentGradeLevel) {
     return `<text x="${(p.x - 6).toFixed(1)}" y="${(p.y + 4).toFixed(1)}" fill="rgba(139,160,196,0.55)" font-size="10" text-anchor="end" font-family="Manrope,sans-serif">${pct}</text>`;
   }).join('');
 
-  const gradeMeta = [{ level: 1, color: '#64748b' }, { level: 2, color: '#eab308' }, { level: 3, color: '#22c55e' }];
+  const gradeMeta = [
+  { level: 1, color: '#94A3B8' },  // Junior — серый
+  { level: 2, color: '#F59E0B' },  // Middle — жёлтый
+  { level: 3, color: '#10B981' },  // Senior — зелёный
+];
   const gradePolygons = gradeMeta.map(({ level, color }) => {
     const values = skillIds.map(id => requirements[id]?.[level - 1] || 0);
     const pts = values.map((v, i) => {
@@ -489,7 +493,7 @@ function buildRadarSVG(skillIds, requirements, userSkills, currentGradeLevel) {
   }).join(' ');
   const userDots = userValues.map((v, i) => {
     const p = polarPoint(cx, cy, R * v / 100, angles[i]);
-    return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="#6366f1" stroke="#0a0f1c" stroke-width="1.5"/>`;
+    return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="#0057FF" stroke="#FFFFFF" stroke-width="1.5"/>`;`;
   }).join('');
 
   const axisLabels = skillIds.map((id, i) => {
@@ -497,8 +501,8 @@ function buildRadarSVG(skillIds, requirements, userSkills, currentGradeLevel) {
     const v = userSkills[id] || 0;
     const name = SKILL_SHORT_NAMES[id] || SKILL_CATALOG[id]?.name || id;
     return `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="middle" font-family="Manrope,sans-serif">
-      <tspan x="${p.x.toFixed(1)}" dy="-2" fill="#c7d2fe" font-size="11" font-weight="700">${name}</tspan>
-      <tspan x="${p.x.toFixed(1)}" dy="14" fill="#8ba0c4" font-size="10">${v}%</tspan>
+      <tspan x="${p.x.toFixed(1)}" dy="-2" fill="#0057FF" font-size="11" font-weight="700">${name}</tspan>
+      <tspan x="${p.x.toFixed(1)}" dy="14" fill="#6B7280" font-size="10">${v}%</tspan>
     </text>`;
   }).join('');
 
@@ -646,10 +650,10 @@ function buildCareerTreeSVG() {
     const start = edgePoint(fromNode.x, fromNode.y, NODE_W, NODE_H, toNode.x, toNode.y);
     const end = edgePoint(toNode.x, toNode.y, NODE_W, NODE_H, fromNode.x, fromNode.y);
     let stroke, dash = '', marker;
-    if (e.type === 'vertical') { stroke = '#22c55e'; marker = 'arrow-green'; }
-    else if (e.type === 'horiz') { stroke = '#3b82f6'; marker = 'arrow-blue'; }
-    else if (e.type === 'future') { stroke = 'rgba(34,197,94,0.5)'; marker = 'arrow-green-faded'; dash = 'stroke-dasharray="6 4"'; }
-    else { stroke = 'rgba(139,160,196,0.4)'; marker = 'arrow-gray'; }
+    if (e.type === 'vertical') { stroke = '#10B981'; marker = 'arrow-green'; }
+   else if (e.type === 'horiz') { stroke = '#00C2FF'; marker = 'arrow-blue'; }
+   else if (e.type === 'future') { stroke = 'rgba(16,185,129,0.5)'; marker = 'arrow-green-faded'; dash = 'stroke-dasharray="6 4"'; }
+   else { stroke = '#9CA3AF'; marker = 'arrow-gray'; }
     return `<line x1="${start.x.toFixed(1)}" y1="${start.y.toFixed(1)}" x2="${end.x.toFixed(1)}" y2="${end.y.toFixed(1)}" stroke="${stroke}" stroke-width="2" ${dash} marker-end="url(#${marker})"/>`;
   }).join('');
 
@@ -674,10 +678,10 @@ function buildCareerTreeSVG() {
   return `
     <svg viewBox="0 0 ${W} ${H}" class="career-tree-svg" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#22c55e"/></marker>
-        <marker id="arrow-green-faded" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="rgba(34,197,94,0.5)"/></marker>
-        <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker>
-        <marker id="arrow-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="rgba(139,160,196,0.4)"/></marker>
+        <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10B981"/></marker>
+        <marker id="arrow-green-faded" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="rgba(16,185,129,0.5)"/></marker>
+        <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#00C2FF"/></marker>
+        <marker id="arrow-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#9CA3AF"/></marker>
       </defs>
       ${edgeSvg}${nodeSvg}
     </svg>`;
