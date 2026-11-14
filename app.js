@@ -280,20 +280,34 @@ function onWizardClick(e) {
     renderWizard();
     return;
   }
-  if (e.target.id === 'wizard-next') {
-    if (wizard.step === 1) {
-      const name = wizard.draft.name.trim();
-      if (!name) { toast('Введите имя'); return; }
-    }
+
+  const nextBtn = e.target.closest('#wizard-next');
+  if (nextBtn) {
+    if (!wizard) { toast('Сессия истекла, начните заново'); return; }
+    if (wizard.step === 1 && !wizard.draft.name.trim()) { toast('Введите имя'); return; }
     if (wizard.step < 3) { wizard.step++; renderWizard(); }
     return;
   }
-  if (e.target.id === 'wizard-back') {
-    if (wizard.step > 1) { wizard.step--; renderWizard(); }
+
+  const backBtn = e.target.closest('#wizard-back');
+  if (backBtn) {
+    if (wizard && wizard.step > 1) { wizard.step--; renderWizard(); }
     return;
   }
-  if (e.target.id === 'wizard-finish') {
-    finishWizard();
+
+  const finishBtn = e.target.closest('#wizard-finish');
+  if (finishBtn) {
+    if (!wizard) { toast('Сессия истекла, начните заново'); return; }
+    finishBtn.disabled = true;
+    finishBtn.textContent = 'Сохраняем…';
+    try {
+      finishWizard();
+    } catch (err) {
+      console.error('finishWizard error:', err);
+      toast('Ошибка: ' + err.message);
+      finishBtn.disabled = false;
+      finishBtn.textContent = wizard.editing ? 'Сохранить' : 'Создать профиль';
+    }
     return;
   }
 }
@@ -407,22 +421,22 @@ function renderProfile() {
           <span class="chip">${u.xp} XP</span>
           ${targetPos ? `<span class="chip chip-target">🎯 ${targetPos.title}</span>` : ''}
         </div>
-        <div class="skill-bar" style="height:8px;margin-top:12px;background:rgba(255,255,255,.06)">
-          <div style="height:100%;width:${levelPct}%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:999px"></div>
+        <div class="skill-bar" style="height:8px;margin-top:12px;background:var(--bg-2)">
+          <div style="height:100%;width:${levelPct}%;background:linear-gradient(90deg,var(--biv-blue),var(--biv-cyan));border-radius:999px"></div>
         </div>
         <p class="muted small" style="margin:6px 0 0">${u.xp - curLvlXp} / ${nxtXp - curLvlXp} XP до уровня ${lvl + 1}</p>
       </div>
     </div>
 
-    <div class="grid-2">
+    <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px">
       <div class="card">
         <h3>Текущая позиция</h3>
-        <div class="pos-big">${pos.title}</div>
+        <div class="pos-big" style="font-size:20px;font-weight:800;margin:4px 0 10px">${pos.title}</div>
         <p class="muted">${pos.description}</p>
       </div>
       <div class="card">
         <h3>Следующая ступень</h3>
-        <div class="pos-big">${nextPos ? nextPos.title : 'Максимальный грейд'}</div>
+        <div class="pos-big" style="font-size:20px;font-weight:800;margin:4px 0 10px">${nextPos ? nextPos.title : 'Максимальный грейд'}</div>
         <div class="progress-big"><div style="width:${Math.round(readiness * 100)}%"></div></div>
         <p class="muted">Готовность: <strong style="color:var(--text)">${Math.round(readiness * 100)}%</strong></p>
         <button class="btn" data-goto="map">Открыть карту →</button>
@@ -458,24 +472,24 @@ function buildRadarSVG(skillIds, requirements, userSkills, currentGradeLevel) {
       const p = polarPoint(cx, cy, R * pct / 100, a);
       return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
     }).join(' ');
-    return `<polygon points="${userPts}" fill="url(#avatarRadarGrad)" fill-opacity="0.25" stroke="#0057FF" stroke-width="2.5" stroke-linejoin="round"/>`;
+    return `<polygon points="${pts}" fill="none" stroke="rgba(0,87,255,0.1)" stroke-width="1"/>`;
   }).join('');
 
   const axes = angles.map(a => {
     const p = polarPoint(cx, cy, R, a);
-    return `<line x1="${cx}" y1="${cy}" x2="${p.x.toFixed(1)}" y2="${p.y.toFixed(1)}" stroke="rgba(255,255,255,0.1)"/>`;
+    return `<line x1="${cx}" y1="${cy}" x2="${p.x.toFixed(1)}" y2="${p.y.toFixed(1)}" stroke="rgba(0,87,255,0.12)"/>`;
   }).join('');
 
   const pctLabels = rings.map(pct => {
     const p = polarPoint(cx, cy, R * pct / 100, 0);
-    return `<text x="${(p.x - 6).toFixed(1)}" y="${(p.y + 4).toFixed(1)}" fill="rgba(139,160,196,0.55)" font-size="10" text-anchor="end" font-family="Manrope,sans-serif">${pct}</text>`;
+    return `<text x="${(p.x - 6).toFixed(1)}" y="${(p.y + 4).toFixed(1)}" fill="#9CA3AF" font-size="10" text-anchor="end" font-family="Inter,sans-serif">${pct}</text>`;
   }).join('');
 
   const gradeMeta = [
-  { level: 1, color: '#94A3B8' },  // Junior — серый
-  { level: 2, color: '#F59E0B' },  // Middle — жёлтый
-  { level: 3, color: '#10B981' },  // Senior — зелёный
-];
+    { level: 1, color: '#94A3B8' },
+    { level: 2, color: '#F59E0B' },
+    { level: 3, color: '#10B981' },
+  ];
   const gradePolygons = gradeMeta.map(({ level, color }) => {
     const values = skillIds.map(id => requirements[id]?.[level - 1] || 0);
     const pts = values.map((v, i) => {
@@ -483,7 +497,7 @@ function buildRadarSVG(skillIds, requirements, userSkills, currentGradeLevel) {
       return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
     }).join(' ');
     const isCurrent = level === currentGradeLevel;
-    return `<polygon points="${pts}" fill="${color}" fill-opacity="${isCurrent ? 0.1 : 0.04}" stroke="${color}" stroke-width="${isCurrent ? 2 : 1.2}" stroke-opacity="${isCurrent ? 0.85 : 0.55}" ${isCurrent ? '' : 'stroke-dasharray="4 3"'}/>`;
+    return `<polygon points="${pts}" fill="${color}" fill-opacity="${isCurrent ? 0.12 : 0.05}" stroke="${color}" stroke-width="${isCurrent ? 2 : 1.2}" stroke-opacity="${isCurrent ? 0.9 : 0.6}" ${isCurrent ? '' : 'stroke-dasharray="4 3"'}/>`;
   }).join('');
 
   const userValues = skillIds.map(id => userSkills[id] || 0);
@@ -493,14 +507,14 @@ function buildRadarSVG(skillIds, requirements, userSkills, currentGradeLevel) {
   }).join(' ');
   const userDots = userValues.map((v, i) => {
     const p = polarPoint(cx, cy, R * v / 100, angles[i]);
-    return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="#0057FF" stroke="#FFFFFF" stroke-width="1.5"/>`;`;
+    return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="#0057FF" stroke="#FFFFFF" stroke-width="1.5"/>`;
   }).join('');
 
   const axisLabels = skillIds.map((id, i) => {
     const p = polarPoint(cx, cy, labelR, angles[i]);
     const v = userSkills[id] || 0;
     const name = SKILL_SHORT_NAMES[id] || SKILL_CATALOG[id]?.name || id;
-    return `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="middle" font-family="Manrope,sans-serif">
+    return `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="middle" font-family="Inter,sans-serif">
       <tspan x="${p.x.toFixed(1)}" dy="-2" fill="#0057FF" font-size="11" font-weight="700">${name}</tspan>
       <tspan x="${p.x.toFixed(1)}" dy="14" fill="#6B7280" font-size="10">${v}%</tspan>
     </text>`;
@@ -510,12 +524,12 @@ function buildRadarSVG(skillIds, requirements, userSkills, currentGradeLevel) {
     <svg viewBox="0 0 ${size} ${size}" class="radar-svg" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <radialGradient id="avatarRadarGrad" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="#22d3ee"/>
-          <stop offset="100%" stop-color="#6366f1"/>
+          <stop offset="0%" stop-color="#00C2FF"/>
+          <stop offset="100%" stop-color="#0057FF"/>
         </radialGradient>
       </defs>
       ${ringPolygons}${axes}${pctLabels}${gradePolygons}
-      <polygon points="${userPts}" fill="url(#avatarRadarGrad)" fill-opacity="0.3" stroke="#6366f1" stroke-width="2.5" stroke-linejoin="round"/>
+      <polygon points="${userPts}" fill="url(#avatarRadarGrad)" fill-opacity="0.25" stroke="#0057FF" stroke-width="2.5" stroke-linejoin="round"/>
       ${userDots}${axisLabels}
     </svg>`;
 }
@@ -651,9 +665,9 @@ function buildCareerTreeSVG() {
     const end = edgePoint(toNode.x, toNode.y, NODE_W, NODE_H, fromNode.x, fromNode.y);
     let stroke, dash = '', marker;
     if (e.type === 'vertical') { stroke = '#10B981'; marker = 'arrow-green'; }
-   else if (e.type === 'horiz') { stroke = '#00C2FF'; marker = 'arrow-blue'; }
-   else if (e.type === 'future') { stroke = 'rgba(16,185,129,0.5)'; marker = 'arrow-green-faded'; dash = 'stroke-dasharray="6 4"'; }
-   else { stroke = '#9CA3AF'; marker = 'arrow-gray'; }
+    else if (e.type === 'horiz') { stroke = '#00C2FF'; marker = 'arrow-blue'; }
+    else if (e.type === 'future') { stroke = 'rgba(16,185,129,0.5)'; marker = 'arrow-green-faded'; dash = 'stroke-dasharray="6 4"'; }
+    else { stroke = '#9CA3AF'; marker = 'arrow-gray'; }
     return `<line x1="${start.x.toFixed(1)}" y1="${start.y.toFixed(1)}" x2="${end.x.toFixed(1)}" y2="${end.y.toFixed(1)}" stroke="${stroke}" stroke-width="2" ${dash} marker-end="url(#${marker})"/>`;
   }).join('');
 
@@ -754,7 +768,7 @@ function renderMap() {
     </div>`;
 }
 
-/* ---------- Development Scenario (Plan) ---------- */
+/* ---------- Plan / Scenario ---------- */
 const RECOMMENDATION_ICONS = { course: '📚', practice: '🔧', mentor: '🧑‍🏫', feedback: '💬', challenge: '🎤', ownership: '🚀', retro: '🔄' };
 
 function getRecommendationsForGap(gap, group) {
@@ -814,7 +828,6 @@ function getRecommendedTargets() {
 
 function renderPlan() {
   const u = state();
-  const pos = currentPosition();
   const targetId = u.targetPositionId;
   const target = targetId ? POSITION_BY_ID[targetId] : null;
 
@@ -843,7 +856,6 @@ function renderPlan() {
     const gaps = generateScenario(u.skills, target);
     const weeks = estimateWeeks(gaps);
     const achieved = readiness >= 1;
-    const canMove = achieved || readiness >= 0.95;
 
     const summary = `
       <div class="summary-grid">
@@ -984,21 +996,13 @@ function openPositionModal(posId) {
   if (isCurrent) {
     actions = `<p class="note">Это ваша текущая позиция.</p>`;
   } else if (achieved) {
-    actions = `
-      <div class="modal-actions">
-        <button class="btn btn-primary" data-move="${pos.id}">Перейти на позицию →</button>
-      </div>`;
+    actions = `<div class="modal-actions"><button class="btn btn-primary" data-move="${pos.id}">Перейти на позицию →</button></div>`;
   } else if (isTarget) {
     actions = `
       <p class="note">🎯 Эта позиция уже выбрана целью развития.</p>
-      <div class="modal-actions">
-        <button class="btn btn-primary" data-goto-plan>Открыть сценарий →</button>
-      </div>`;
+      <div class="modal-actions"><button class="btn btn-primary" data-goto-plan>Открыть сценарий →</button></div>`;
   } else {
-    actions = `
-      <div class="modal-actions">
-        <button class="btn btn-primary" data-set-target="${pos.id}">Выбрать целью развития 🎯</button>
-      </div>`;
+    actions = `<div class="modal-actions"><button class="btn btn-primary" data-set-target="${pos.id}">Выбрать целью развития 🎯</button></div>`;
   }
 
   document.querySelector('#modal .modal-content').innerHTML = `
