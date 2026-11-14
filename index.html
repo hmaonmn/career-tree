@@ -11,12 +11,12 @@
 </head>
 <body>
 
-<header class="app-header">
+<header class="app-header" id="app-header" style="display:none">
   <div class="brand">
     <div class="brand-logo">◈</div>
     <div>
       <h1>Career Tree</h1>
-      <p class="muted small">Система карьерного развития · BIV</p>
+      <p class="muted small" id="header-subtitle">Система карьерного развития · BIV</p>
     </div>
   </div>
   <nav class="tabs" id="tabs" style="display:none">
@@ -28,11 +28,13 @@
   </nav>
   <div class="header-actions" id="header-actions" style="display:none">
     <button class="btn btn-ghost btn-sm" id="edit-profile-btn">✎ Редактировать</button>
-    <button class="btn btn-ghost btn-sm" id="reset-btn">Выйти</button>
+    <button class="btn btn-ghost btn-sm" id="logout-btn">Выйти</button>
   </div>
 </header>
 
 <main>
+  <section id="auth" class="tab-panel"></section>
+  <section id="admin" class="tab-panel"></section>
   <section id="onboarding" class="tab-panel"></section>
   <section id="profile" class="tab-panel"></section>
   <section id="radar" class="tab-panel"></section>
