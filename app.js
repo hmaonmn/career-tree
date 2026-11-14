@@ -901,4 +901,767 @@ function renderProfile() {
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px">
+      <div class="card">
+        <h3>Текущая позиция</h3>
+        <div style="font-size:20px;font-weight:800;margin:4px 0 10px">${positionTitle(u.roleId, u.gradeId)}</div>
+        <p class="muted">Позиция определяется ролью и текущим грейдом сотрудника.</p>
+      </div>
+      <div class="card">
+        <h3>Следующая ступень</h3>
+        <div style="font-size:20px;font-weight:800;margin:4px 0 10px">${nextGrade ? positionTitle(u.roleId, nextGrade.id) : 'Максимальный грейд'}</div>
+        <div class="progress-big"><div style="width:${Math.round(readiness * 100)}%"></div></div>
+        <p class="muted">Готовность: <strong style="color:var(--text)">${Math.round(readiness * 100)}%</strong></p>
+        <button class="btn" data-goto="map">Открыть карту →</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Навыки</h2>
+      <p class="muted small">Нажмите «+», чтобы отметить прогресс (+3 к навыку, +15 XP).</p>
+      <div class="skills-cols">
+        <div><h3>Hard</h3>${hardIds.map(skillRow).join('') || '<p class="muted small">Не заданы в критериях</p>'}</div>
+        <div><h3>Soft</h3>${softIds.map(skillRow).join('') || '<p class="muted small">Не заданы</p>'}</div>
+        <div><h3>Проектные</h3>${projIds.map(skillRow).join('') || '<p class="muted small">Не заданы</p>'}</div>
+      </div>
+    </div>`;
+}
+
+/* ---------- Radar ---------- */
+function polarPoint(cx, cy, r, angleDeg) {
+  const rad = (angleDeg - 90) * Math.PI / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function buildRadarSVG(skillIds, requirementsPerGrade, userSkills, currentGradeId) {
+  const N = skillIds.length;
+  const size = 560, cx = size/2, cy = size/2;
+  const R = 140, labelR = 195;
+  const angles = Array.from({ length: N }, (_, i) => (360 / N) * i);
+
+  const rings = [25, 50, 75, 100];
+  const ringPolygons = rings.map(pct => {
+    const pts = angles.map(a => {
+      const p = polarPoint(cx, cy, R * pct / 100, a);
+      return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+    }).join(' ');
+    return `<polygon points="${pts}" fill="none" stroke="rgba(0,87,255,0.1)"/>`;
+  }).join('');
+  const axes = angles.map(a => {
+    const p = polarPoint(cx, cy, R, a);
+    return `<line x1="${cx}" y1="${cy}" x2="${p.x.toFixed(1)}" y2="${p.y.toFixed(1)}" stroke="rgba(0,87,255,0.12)"/>`;
+  }).join('');
+  const pctLabels = rings.map(pct => {
+    const p = polarPoint(cx, cy, R * pct / 100, 0);
+    return `<text x="${(p.x - 6).toFixed(1)}" y="${(p.y + 4).toFixed(1)}" fill="#9CA3AF" font-size="10" text-anchor="end" font-family="Inter,sans-serif">${pct}</text>`;
+  }).join('');
+
+  // Показываем максимум 3 первых грейда как ориентиры
+  const gradeColors = ['#94A3B8', '#F59E0B', '#10B981'];
+  const gradePolygons = requirementsPerGrade.slice(0, 3).map((entry, idx) => {
+    const { gradeId, requirements } = entry;
+    const values = skillIds.map(id => requirements[id] || 0);
+    const pts = values.map((v, i) => {
+      const p = polarPoint(cx, cy, R * v / 100, angles[i]);
+      return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+    }).join(' ');
+    const color = gradeColors[idx] || '#64748B';
+    const isCurrent = gradeId === currentGradeId;
+    return `<polygon points="${pts}" fill="${color}" fill-opacity="${isCurrent ? 0.12 : 0.05}" stroke="${color}" stroke-width="${isCurrent ? 2 : 1.2}" stroke-opacity="${isCurrent ? 0.9 : 0.6}" ${isCurrent ? '' : 'stroke-dasharray="4 3"'}/>`;
+  }).join('');
+
+  const userValues = skillIds.map(id => userSkills[id] || 0);
+  const userPts = userValues.map((v, i) => {
+    const p = polarPoint(cx, cy, R * v / 100, angles[i]);
+    return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+  }).join(' ');
+  const userDots = userValues.map((v, i) => {
+    const p = polarPoint(cx, cy, R * v / 100, angles[i]);
+    return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="#0057FF" stroke="#FFFFFF" stroke-width="1.5"/>`;
+  }).join('');
+  const axisLabels = skillIds.map((id, i) => {
+    const p = polarPoint(cx, cy, labelR, angles[i]);
+    const v = userSkills[id] || 0;
+    const name = SKILL_SHORT_NAMES[id] || SKILL_CATALOG[id]?.name || id;
+    return `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="middle" font-family="Inter,sans-serif">
+      <tspan x="${p.x.toFixed(1)}" dy="-2" fill="#0057FF" font-size="11" font-weight="700">${name}</tspan>
+      <tspan x="${p.x.toFixed(1)}" dy="14" fill="#6B7280" font-size="10">${v}%</tspan>
+    </text>`;
+  }).join('');
+
+  return `
+    <svg viewBox="0 0 ${size} ${size}" class="radar-svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="avatarRadarGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#00C2FF"/>
+          <stop offset="100%" stop-color="#0057FF"/>
+        </radialGradient>
+      </defs>
+      ${ringPolygons}${axes}${pctLabels}${gradePolygons}
+      <polygon points="${userPts}" fill="url(#avatarRadarGrad)" fill-opacity="0.25" stroke="#0057FF" stroke-width="2.5" stroke-linejoin="round"/>
+      ${userDots}${axisLabels}
+    </svg>`;
+}
+
+function renderRadar() {
+  const u = getCurrentUser();
+  const req = getRequirements(u.roleId, u.gradeId);
+  const skillIds = Object.keys(req).filter(id => {
+    const g = SKILL_CATALOG[id]?.group;
+    return g === (radarMode === 'hard' ? 'Hard' : radarMode === 'soft' ? 'Soft' : 'Project');
+  });
+
+  if (!skillIds.length) {
+    document.getElementById('radar').innerHTML = `
+      <div class="card">
+        <div class="panel-head">
+          <h2 style="margin:0">Роза навыков</h2>
+          <div class="radar-toggle">
+            <button class="toggle-btn ${radarMode==='hard'?'active':''}" data-radar-mode="hard">Hard</button>
+            <button class="toggle-btn ${radarMode==='soft'?'active':''}" data-radar-mode="soft">Soft</button>
+            <button class="toggle-btn ${radarMode==='project'?'active':''}" data-radar-mode="project">Проектные</button>
+          </div>
+        </div>
+        <p class="muted">Критерии для этой группы ещё не заданы администратором.</p>
+      </div>`;
+    return;
+  }
+
+  const sortedGrades = getSortedGrades();
+  const requirementsPerGrade = sortedGrades.map(g => ({
+    gradeId: g.id,
+    gradeName: g.name,
+    requirements: getRequirements(u.roleId, g.id),
+  }));
+  const svg = buildRadarSVG(skillIds, requirementsPerGrade, u.skills, u.gradeId);
+
+  const refGrades = requirementsPerGrade.slice(0, 3);
+  const tableRows = skillIds.map(id => {
+    const cur = u.skills[id] || 0;
+    const name = SKILL_SHORT_NAMES[id] || SKILL_CATALOG[id]?.name || id;
+    const cells = refGrades.map(entry => {
+      const r = entry.requirements[id] || 0;
+      const cls = cur >= r ? 'ok' : 'gap';
+      return `<td class="num ${cls}">${r}</td>`;
+    }).join('');
+    return `<tr><td>${name}</td><td class="num you">${cur}</td>${cells}</tr>`;
+  }).join('');
+
+  document.getElementById('radar').innerHTML = `
+    <div class="card">
+      <div class="panel-head">
+        <h2 style="margin:0">Роза навыков</h2>
+        <div class="radar-toggle">
+          <button class="toggle-btn ${radarMode==='hard'?'active':''}" data-radar-mode="hard">Hard</button>
+          <button class="toggle-btn ${radarMode==='soft'?'active':''}" data-radar-mode="soft">Soft</button>
+          <button class="toggle-btn ${radarMode==='project'?'active':''}" data-radar-mode="project">Проектные</button>
+        </div>
+      </div>
+      <p class="muted">Ваши навыки и границы грейдов. Позиция: <strong>${positionTitle(u.roleId, u.gradeId)}</strong>.</p>
+      <div class="radar-layout">
+        <div class="radar-wrap">${svg}</div>
+        <div>
+          <div class="legend legend-v">
+            <span><i class="dot radar-user"></i>Вы</span>
+            ${refGrades.map((entry, i) => `<span><i class="dot" style="background:${['#94A3B8','#F59E0B','#10B981'][i] || '#64748B'}"></i>${entry.gradeName}</span>`).join('')}
+          </div>
+          <table class="radar-table">
+            <thead><tr><th>Навык</th><th class="num">Вы</th>${refGrades.map(g => `<th class="num">${g.gradeName.slice(0,1)}</th>`).join('')}</tr></thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ---------- Map / Career Tree ---------- */
+function buildCareerTreeSVG() {
+  const u = getCurrentUser();
+  const role = getRoleById(u.roleId);
+  const grade = getGradeById(u.gradeId);
+  const W = 1200, H = 680;
+  const NODE_W = 240, NODE_H = 76;
+  const centerX = 600, centerY = 420;
+  const nodes = [], edges = [];
+
+  const uid = (r, g) => `${r}_${g}`;
+
+  nodes.push({ id: uid(role.id, grade.id), roleId: role.id, gradeId: grade.id, x: centerX, y: centerY, type: 'current', label: 'Вы здесь' });
+
+  const nextGrade = getNextGrade(grade.id);
+  if (nextGrade) {
+    nodes.push({ id: uid(role.id, nextGrade.id), roleId: role.id, gradeId: nextGrade.id, x: centerX, y: centerY - 140, type: 'next', label: 'Следующий шаг' });
+    edges.push({ from: uid(role.id, grade.id), to: uid(role.id, nextGrade.id), type: 'vertical' });
+    const nextGrade2 = getNextGrade(nextGrade.id);
+    if (nextGrade2) {
+      nodes.push({ id: uid(role.id, nextGrade2.id), roleId: role.id, gradeId: nextGrade2.id, x: centerX, y: centerY - 280, type: 'future', label: 'Перспектива' });
+      edges.push({ from: uid(role.id, nextGrade.id), to: uid(role.id, nextGrade2.id), type: 'future' });
+    }
+  }
+  const prevGrade = getPrevGrade(grade.id);
+  if (prevGrade) {
+    nodes.push({ id: uid(role.id, prevGrade.id), roleId: role.id, gradeId: prevGrade.id, x: centerX, y: centerY + 140, type: 'prev', label: 'Пройдено' });
+    edges.push({ from: uid(role.id, grade.id), to: uid(role.id, prevGrade.id), type: 'prev' });
+  }
+
+  const otherRoles = db.config.roles.filter(r => r.id !== role.id);
+  const leftCount = Math.floor(otherRoles.length / 2);
+  const sideYs = (count) => {
+    if (count === 0) return [];
+    if (count === 1) return [centerY];
+    const spacing = Math.min(140, 300 / (count - 1));
+    const start = centerY - (count - 1) * spacing / 2;
+    return Array.from({ length: count }, (_, i) => start + i * spacing);
+  };
+  const leftYs = sideYs(leftCount);
+  const rightYs = sideYs(otherRoles.length - leftCount);
+  otherRoles.forEach((r, i) => {
+    let x, y;
+    if (i < leftCount) { x = 200; y = leftYs[i]; }
+    else { x = 1000; y = rightYs[i - leftCount]; }
+    nodes.push({ id: uid(r.id, grade.id), roleId: r.id, gradeId: grade.id, x, y, type: 'horiz', label: 'Альтернатива' });
+    edges.push({ from: uid(role.id, grade.id), to: uid(r.id, grade.id), type: 'horiz' });
+  });
+
+  function edgePoint(cx, cy, w, h, tx, ty) {
+    const dx = tx - cx, dy = ty - cy;
+    if (dx === 0 && dy === 0) return { x: cx, y: cy };
+    const angle = Math.atan2(dy, dx);
+    const tanA = Math.abs(Math.tan(angle));
+    let x, y;
+    if (tanA <= h / w) { x = cx + Math.sign(dx) * (w/2); y = cy + Math.sign(dx) * (w/2) * Math.tan(angle); }
+    else { const cotA = 1 / (tanA || Infinity); x = cx + Math.sign(dy) * (h/2) * cotA; y = cy + Math.sign(dy) * (h/2); }
+    return { x, y };
+  }
+
+  const edgeSvg = edges.map(e => {
+    const fromNode = nodes.find(n => n.id === e.from);
+    const toNode = nodes.find(n => n.id === e.to);
+    if (!fromNode || !toNode) return '';
+    const start = edgePoint(fromNode.x, fromNode.y, NODE_W, NODE_H, toNode.x, toNode.y);
+    const end = edgePoint(toNode.x, toNode.y, NODE_W, NODE_H, fromNode.x, fromNode.y);
+    let stroke, dash = '', marker;
+    if (e.type === 'vertical') { stroke = '#10B981'; marker = 'arrow-green'; }
+    else if (e.type === 'horiz') { stroke = '#00C2FF'; marker = 'arrow-blue'; }
+    else if (e.type === 'future') { stroke = 'rgba(16,185,129,0.5)'; marker = 'arrow-green-faded'; dash = 'stroke-dasharray="6 4"'; }
+    else { stroke = '#9CA3AF'; marker = 'arrow-gray'; }
+    return `<line x1="${start.x.toFixed(1)}" y1="${start.y.toFixed(1)}" x2="${end.x.toFixed(1)}" y2="${end.y.toFixed(1)}" stroke="${stroke}" stroke-width="2" ${dash} marker-end="url(#${marker})"/>`;
+  }).join('');
+
+  const nodeSvg = nodes.map(n => {
+    const nx = n.x - NODE_W / 2, ny = n.y - NODE_H / 2;
+    const r = getRoleById(n.roleId), g = getGradeById(n.gradeId);
+    const isTarget = u.targetPositionId === n.id;
+    let pctText = n.type === 'current' ? '100%' : n.type === 'prev' ? '' : Math.round(positionReadiness(n.roleId, n.gradeId, u.skills) * 100) + '%';
+    const cls = `tree-node ${n.type}${isTarget ? ' target' : ''}`;
+    return `
+      <g class="${cls}" data-pos="${n.id}" style="cursor:pointer">
+        <rect class="tree-node-box" x="${nx}" y="${ny}" width="${NODE_W}" height="${NODE_H}" rx="12"/>
+        <text x="${n.x}" y="${n.y - 14}" text-anchor="middle" class="tree-node-title">${r.icon} ${g.name} ${r.name}${isTarget ? ' 🎯' : ''}</text>
+        <text x="${n.x}" y="${n.y + 6}" text-anchor="middle" class="tree-node-pct">${pctText}</text>
+        <text x="${n.x}" y="${n.y + 24}" text-anchor="middle" class="tree-node-label">${n.label}</text>
+      </g>`;
+  }).join('');
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" class="career-tree-svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10B981"/></marker>
+        <marker id="arrow-green-faded" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="rgba(16,185,129,0.5)"/></marker>
+        <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#00C2FF"/></marker>
+        <marker id="arrow-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#9CA3AF"/></marker>
+      </defs>
+      ${edgeSvg}${nodeSvg}
+    </svg>`;
+}
+
+function renderMap() {
+  const u = getCurrentUser();
+  const roles = db.config.roles;
+  const grades = getSortedGrades().slice().reverse();
+
+  const headCells = roles.map(r => `<div class="cell cell-head">${r.icon} ${escapeHtml(r.name)}</div>`).join('');
+  const rows = grades.map(grade => {
+    const gradeCell = `<div class="cell cell-grade">${escapeHtml(grade.name)}</div>`;
+    const cells = roles.map(role => {
+      const readiness = positionReadiness(role.id, grade.id, u.skills);
+      const posId = `${role.id}_${grade.id}`;
+      const isCurrent = role.id === u.roleId && grade.id === u.gradeId;
+      const isTarget = u.targetPositionId === posId;
+      const isVertical = role.id === u.roleId && grade.id === getNextGrade(u.gradeId)?.id;
+      const isHoriz = role.id !== u.roleId && grade.id === u.gradeId;
+      let cls = 'cell cell-pos', label = '';
+      if (isCurrent) { cls += ' current'; label = 'Вы здесь'; }
+      else if (isVertical) { cls += ' vertical'; label = 'Вертикальный рост'; }
+      else if (isHoriz) { cls += ' horizontal'; label = 'Горизонтально'; }
+      if (isTarget) { cls += ' target'; label = '🎯 Цель'; }
+      return `<div class="${cls}" data-pos="${posId}">
+        <div class="pos-pct">${Math.round(readiness * 100)}%</div>
+        ${label ? `<div class="pos-label">${label}</div>` : ''}
+      </div>`;
+    }).join('');
+    return gradeCell + cells;
+  }).join('');
+
+  document.getElementById('map').innerHTML = `
+    <div class="card">
+      <div class="panel-head">
+        <h2 style="margin:0">Карта движения</h2>
+        <div class="legend">
+          <span><i class="dot current"></i>Вы</span>
+          <span><i class="dot target-dot"></i>Цель</span>
+          <span><i class="dot vertical"></i>Вертикальный рост</span>
+          <span><i class="dot horizontal"></i>Горизонтальный переход</span>
+        </div>
+      </div>
+      <p class="muted">Кликните на ячейку, чтобы увидеть требования, разрыв в навыках и выбрать цель.</p>
+      <div class="map-scroll">
+        <div class="map-grid" style="grid-template-columns:110px repeat(${roles.length}, minmax(130px,1fr));">
+          <div class="cell cell-head">Грейд</div>
+          ${headCells}
+          ${rows}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="panel-head">
+        <h2 style="margin:0">Дерево переходов</h2>
+        <div class="legend">
+          <span><i class="dot edge-vertical"></i>Вертикальный рост</span>
+          <span><i class="dot edge-horiz"></i>Горизонтальный переход</span>
+          <span><i class="dot edge-future"></i>Перспектива</span>
+        </div>
+      </div>
+      <p class="muted">Возможные пути от вашей позиции. Клик на узел — детали.</p>
+      <div class="career-tree-wrap">${buildCareerTreeSVG()}</div>
+    </div>`;
+}
+
+/* ---------- Plan / Scenario ---------- */
+const RECOMMENDATION_ICONS = { course: '📚', practice: '🔧', mentor: '🧑‍🏫', feedback: '💬', challenge: '🎤', ownership: '🚀', retro: '🔄' };
+
+function getRecommendationsForGap(gap, group) {
+  const list = [];
+  if (group === 'Hard') {
+    list.push({ type: 'course', text: 'Пройти профильный курс или воркшоп по теме' });
+    list.push({ type: gap >= 15 ? 'practice' : 'practice', text: gap >= 15 ? 'Взять 2-3 задачи по теме в ближайших спринтах' : 'Применить навык в текущем проекте' });
+    if (gap >= 20) list.push({ type: 'mentor', text: 'Найти ментора или наставника в команде' });
+  } else if (group === 'Soft') {
+    list.push({ type: 'practice', text: 'Волонтёрить в кросс-командных встречах и митапах' });
+    list.push({ type: 'feedback', text: 'Запросить регулярную обратную связь у руководителя' });
+    if (gap >= 15) list.push({ type: 'challenge', text: 'Взять роль ведущего на встрече или выступление' });
+  } else {
+    list.push({ type: 'ownership', text: 'Возглавить небольшую инициативу или проект' });
+    list.push({ type: 'retro', text: 'Разбирать ретроспективы проектов с руководителем' });
+    if (gap >= 15) list.push({ type: 'practice', text: 'Вести проект под наставничеством опытного коллеги' });
+  }
+  return list;
+}
+
+function generateScenario(currentSkills, roleId, gradeId) {
+  const req = getRequirements(roleId, gradeId);
+  return Object.entries(req)
+    .map(([skillId, required]) => ({
+      skillId, name: SKILL_CATALOG[skillId]?.name || skillId,
+      group: SKILL_CATALOG[skillId]?.group || 'Hard',
+      current: currentSkills[skillId] || 0, required,
+      gap: Math.max(0, required - (currentSkills[skillId] || 0)),
+    }))
+    .filter(g => g.gap > 0)
+    .sort((a, b) => b.gap - a.gap);
+}
+
+function estimateWeeks(gaps) {
+  const totalGap = gaps.reduce((s, g) => s + g.gap, 0);
+  return Math.max(2, Math.ceil(totalGap / 15));
+}
+
+function getRecommendedTargets() {
+  const u = getCurrentUser();
+  const candidates = [];
+  const nextGrade = getNextGrade(u.gradeId);
+  if (nextGrade) candidates.push({ roleId: u.roleId, gradeId: nextGrade.id });
+  db.config.roles.forEach(r => {
+    if (r.id !== u.roleId) candidates.push({ roleId: r.id, gradeId: u.gradeId });
+  });
+  return candidates
+    .map(c => ({ ...c, readiness: positionReadiness(c.roleId, c.gradeId, u.skills) }))
+    .sort((a, b) => b.readiness - a.readiness)
+    .slice(0, 3);
+}
+
+function renderPlan() {
+  const u = getCurrentUser();
+  const targetId = u.targetPositionId;
+  let target = null;
+  if (targetId) {
+    const [roleId, gradeId] = targetId.split('_');
+    if (getRoleById(roleId) && getGradeById(gradeId)) target = { roleId, gradeId };
+  }
+
+  let main;
+  if (!target) {
+    const recs = getRecommendedTargets();
+    main = `
+      <div class="card">
+        <div class="empty-state">
+          <div class="empty-state-icon">🎯</div>
+          <h3>Выберите цель развития</h3>
+          <p class="muted">Откройте «Карту роста», кликните на интересующую позицию и выберите её целью. Или выберите из рекомендованных ниже.</p>
+        </div>
+        <h3 style="margin-top:24px">Рекомендуемые цели</h3>
+        <div class="recommend-grid">
+          ${recs.map(r => {
+            const role = getRoleById(r.roleId);
+            return `
+              <div class="recommend-card" data-set-target="${r.roleId}_${r.gradeId}">
+                <div class="pos-name">${role.icon} ${positionTitle(r.roleId, r.gradeId)}</div>
+                <div class="pos-readiness">Готовность: <strong style="color:var(--text)">${Math.round(r.readiness * 100)}%</strong></div>
+                <button class="btn btn-primary btn-sm" style="width:100%">Выбрать целью →</button>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  } else {
+    const readiness = positionReadiness(target.roleId, target.gradeId, u.skills);
+    const gaps = generateScenario(u.skills, target.roleId, target.gradeId);
+    const weeks = estimateWeeks(gaps);
+    const achieved = readiness >= 1;
+
+    const gapsBlock = gaps.length === 0 ? `
+      <div class="note-ok">🎉 У вас нет пробелов — вы готовы к переходу!</div>` : `
+      <h3 style="margin-top:24px">Что подтянуть</h3>
+      ${gaps.slice(0, 10).map((g, i) => {
+        const priority = i < 2 ? 1 : i < 4 ? 2 : 3;
+        const badgeCls = priority === 1 ? '' : priority === 2 ? 'med' : 'low';
+        const recs = getRecommendationsForGap(g.gap, g.group);
+        return `
+          <div class="gap-card priority-${priority}">
+            <div class="gap-card-head">
+              <div>
+                <div class="gap-card-title">${g.name}</div>
+                <div class="gap-card-group">${g.group} · ${g.current} → ${g.required}</div>
+              </div>
+              <div class="gap-badge ${badgeCls}">-${g.gap} очков</div>
+            </div>
+            ${recs.map(r => {
+              const goalExists = u.goals.some(goal => goal.skill === g.skillId && goal.title.includes(r.text.slice(0, 20)));
+              return `
+                <div class="action-item">
+                  <span class="action-item-icon">${RECOMMENDATION_ICONS[r.type] || '•'}</span>
+                  <div class="action-item-content"><div class="action-item-text">${r.text}</div></div>
+                  <button class="action-add ${goalExists ? 'added' : ''}" data-add-goal="${g.skillId}" data-goal-title="${escapeHtml(r.text)}">
+                    ${goalExists ? '✓ В плане' : '+ В план'}
+                  </button>
+                </div>`;
+            }).join('')}
+          </div>`;
+      }).join('')}`;
+
+    main = `
+      <div class="card">
+        <div class="panel-head">
+          <div>
+            <h2 style="margin:0">Сценарий развития</h2>
+            <p class="muted" style="margin:6px 0 0">Цель: <strong style="color:var(--text)">${getRoleById(target.roleId).icon} ${positionTitle(target.roleId, target.gradeId)}</strong></p>
+          </div>
+          <button class="btn btn-ghost btn-sm" data-clear-target>Сменить цель</button>
+        </div>
+        <div class="summary-grid">
+          <div class="summary-item"><span>Текущая готовность</span><strong>${Math.round(readiness * 100)}%</strong></div>
+          <div class="summary-item"><span>Навыков подтянуть</span><strong>${gaps.length}</strong></div>
+          <div class="summary-item"><span>Оценка срока</span><strong>${weeks} нед.</strong></div>
+        </div>
+        ${achieved ? `<div class="note-ok" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <span>🏆 <strong>Цель достигнута!</strong></span>
+          <button class="btn btn-primary btn-sm" data-move="${target.roleId}_${target.gradeId}">Перейти на позицию →</button>
+        </div>` : ''}
+        ${gapsBlock}
+      </div>
+
+      <div class="card">
+        <h2>Мои цели</h2>
+        <p class="muted">Закрытие цели = +XP и +5 к навыку.</p>
+        <div class="goals">
+          ${u.goals.length === 0 ? '<p class="muted">Пока нет целей. Добавьте из сценария выше.</p>' :
+            u.goals.map(g => `
+              <div class="goal ${g.completed ? 'done' : ''}">
+                <div class="goal-head">
+                  <div>
+                    <div class="goal-title">${escapeHtml(g.title)}</div>
+                    <div class="muted small">Навык: ${SKILL_CATALOG[g.skill]?.name || g.skill} · +${g.xp} XP</div>
+                  </div>
+                  ${g.completed ? '<span class="badge-done">✓ Готово</span>' : ''}
+                </div>
+                <div class="goal-progress"><div style="width:${g.progress}%"></div></div>
+                ${g.completed ? '' : `<div class="goal-actions">
+                  <span class="muted small">${g.progress}%</span>
+                  <button class="btn btn-sm" data-goal-add="${g.id}">+25%</button>
+                </div>`}
+              </div>`).join('')}
+        </div>
+      </div>`;
+  }
+  document.getElementById('plan').innerHTML = main;
+}
+
+/* ---------- Feed ---------- */
+function renderFeed() {
+  const u = getCurrentUser();
+  document.getElementById('feed').innerHTML = `
+    <div class="card">
+      <h2>Активность</h2>
+      <ul class="feed">
+        ${u.activity.length === 0 ? '<li class="muted">Пока нет событий</li>' :
+          u.activity.map(a => `<li>
+            <span class="feed-icon">${a.icon}</span>
+            <div><div>${escapeHtml(a.text)}</div><div class="muted small">${timeAgo(a.time)}</div></div>
+          </li>`).join('')}
+      </ul>
+    </div>`;
+}
+
+/* ============================================================
+   MODAL + ACTIONS
+   ============================================================ */
+function openPositionModal(posId) {
+  const u = getCurrentUser();
+  const [roleId, gradeId] = posId.split('_');
+  const role = getRoleById(roleId), grade = getGradeById(gradeId);
+  if (!role || !grade) return;
+  const readiness = positionReadiness(roleId, gradeId, u.skills);
+  const isCurrent = roleId === u.roleId && gradeId === u.gradeId;
+  const isTarget = u.targetPositionId === posId;
+  const achieved = readiness >= 1;
+
+  const req = getRequirements(roleId, gradeId);
+  const gaps = Object.entries(req).map(([skillId, req]) => ({
+    name: SKILL_CATALOG[skillId]?.name || skillId,
+    req, cur: u.skills[skillId] || 0,
+  })).sort((a, b) => (b.req - b.cur) - (a.req - a.cur));
+
+  let actions = '';
+  if (isCurrent) actions = `<p class="note">Это ваша текущая позиция.</p>`;
+  else if (achieved) actions = `<div class="modal-actions"><button class="btn btn-primary" data-move="${posId}">Перейти на позицию →</button></div>`;
+  else if (isTarget) actions = `<p class="note">🎯 Уже выбрана целью.</p><div class="modal-actions"><button class="btn btn-primary" data-goto-plan>Открыть сценарий →</button></div>`;
+  else actions = `<div class="modal-actions"><button class="btn btn-primary" data-set-target="${posId}">Выбрать целью развития 🎯</button></div>`;
+
+  document.querySelector('#modal .modal-content').innerHTML = `
+    <button class="modal-close">✕</button>
+    <div class="modal-head">
+      <div class="modal-icon" style="background:${role.color}22;color:${role.color}">${role.icon}</div>
+      <div>
+        <h3>${escapeHtml(grade.name)} ${escapeHtml(role.name)}</h3>
+        <p class="muted small" style="margin:2px 0 0">${role.name} · ${grade.name} (уровень ${grade.level})</p>
+      </div>
+    </div>
+    <div class="readiness-row">
+      <div class="progress-big"><div style="width:${Math.round(readiness * 100)}%"></div></div>
+      <strong>${Math.round(readiness * 100)}%</strong>
+    </div>
+    <h3 style="margin-top:18px">Требования и ваши навыки</h3>
+    <div class="gap-list">
+      ${gaps.length === 0 ? '<p class="muted">Требования для этой позиции ещё не заданы администратором.</p>' :
+        gaps.map(g => `
+          <div class="gap-row">
+            <div>${g.name}</div>
+            <div class="gap-bar">
+              <div class="gap-cur" style="width:${Math.min(100, g.cur)}%"></div>
+              <div class="gap-req" style="left:${g.req}%"></div>
+            </div>
+            <div class="gap-vals ${g.cur >= g.req ? 'ok' : ''}">${g.cur} / ${g.req}</div>
+          </div>`).join('')}
+    </div>
+    ${actions}`;
+  document.getElementById('modal').classList.remove('hidden');
+}
+function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
+function setTarget(posId) {
+  const u = getCurrentUser();
+  if (!u) return;
+  const [roleId, gradeId] = posId.split('_');
+  if (!getRoleById(roleId) || !getGradeById(gradeId)) return;
+  if (roleId === u.roleId && gradeId === u.gradeId) return;
+  u.targetPositionId = posId;
+  u.activity.unshift({ icon: '🎯', text: `Выбрана цель: ${positionTitle(roleId, gradeId)}`, time: Date.now() });
+  saveDb();
+  closeModal();
+  activeTab = 'plan';
+  switchTab('plan');
+  renderAll();
+  toast(`Цель: ${positionTitle(roleId, gradeId)}`);
+}
+
+function clearTarget() {
+  const u = getCurrentUser();
+  if (!u) return;
+  u.targetPositionId = null;
+  saveDb();
+  renderAll();
+  toast('Цель сброшена');
+}
+
+function moveToPosition(posId) {
+  const u = getCurrentUser();
+  if (!u) return;
+  const [roleId, gradeId] = posId.split('_');
+  if (!getRoleById(roleId) || !getGradeById(gradeId)) return;
+  u.roleId = roleId;
+  u.gradeId = gradeId;
+  u.targetPositionId = null;
+  u.xp = (u.xp || 0) + 300;
+  u.updatedAt = Date.now();
+  u.activity.unshift({ icon: '🚀', text: `Переход на позицию: ${positionTitle(roleId, gradeId)}`, time: Date.now() });
+  saveDb();
+  closeModal();
+  renderAll();
+  toast(`Поздравляем! Новая позиция: ${positionTitle(roleId, gradeId)}`);
+}
+
+function addGoalFromAction(skillId, title) {
+  const u = getCurrentUser();
+  if (!u) return;
+  if (u.goals.some(g => g.skill === skillId && g.title === title)) { toast('Уже в плане'); return; }
+  u.goals.push({ id: 'g' + Date.now(), title, skill: skillId, xp: 200, progress: 0, completed: false });
+  u.activity.unshift({ icon: '📋', text: `В план: «${title}»`, time: Date.now() });
+  saveDb();
+  renderAll();
+  toast('Добавлено в план');
+}
+
+function addGoalProgress(id, amount) {
+  const u = getCurrentUser();
+  if (!u) return;
+  const goal = u.goals.find(g => g.id === id);
+  if (!goal || goal.completed) return;
+  goal.progress = Math.min(100, goal.progress + amount);
+  if (goal.progress >= 100) {
+    goal.completed = true;
+    u.xp = (u.xp || 0) + goal.xp;
+    u.skills[goal.skill] = Math.min(100, (u.skills[goal.skill] || 0) + 5);
+    u.activity.unshift({ icon: '✅', text: `Цель достигнута: «${goal.title}» (+${goal.xp} XP)`, time: Date.now() });
+    toast(`Цель выполнена! +${goal.xp} XP`);
+  }
+  saveDb();
+  renderAll();
+}
+
+function onProfileClick(e) {
+  const u = getCurrentUser();
+  if (!u) return;
+  const skillBtn = e.target.closest('[data-skill-up]');
+  if (skillBtn) {
+    const id = skillBtn.dataset.skillUp;
+    u.skills[id] = Math.min(100, (u.skills[id] || 0) + 3);
+    u.xp = (u.xp || 0) + 15;
+    u.activity.unshift({ icon: '📈', text: `+3 к навыку: ${SKILL_CATALOG[id].name}`, time: Date.now() });
+    saveDb();
+    renderAll();
+    return;
+  }
+  const goBtn = e.target.closest('[data-goto]');
+  if (goBtn) { activeTab = goBtn.dataset.goto; switchTab(activeTab); return; }
+  if (e.target.closest('[data-avatar]')) {
+    const idx = AVATARS.indexOf(u.avatar);
+    u.avatar = AVATARS[(idx + 1) % AVATARS.length];
+    saveDb();
+    renderProfile();
+  }
+}
+
+function onPlanClick(e) {
+  const setBtn = e.target.closest('[data-set-target]');
+  if (setBtn) { setTarget(setBtn.dataset.setTarget); return; }
+  if (e.target.closest('[data-clear-target]')) { clearTarget(); return; }
+  const addBtn = e.target.closest('[data-add-goal]');
+  if (addBtn) { if (addBtn.classList.contains('added')) return; addGoalFromAction(addBtn.dataset.addGoal, addBtn.dataset.goalTitle); return; }
+  const progBtn = e.target.closest('[data-goal-add]');
+  if (progBtn) { addGoalProgress(progBtn.dataset.goalAdd, 25); return; }
+  const moveBtn = e.target.closest('[data-move]');
+  if (moveBtn) { moveToPosition(moveBtn.dataset.move); return; }
+}
+
+function onRadarClick(e) {
+  const btn = e.target.closest('[data-radar-mode]');
+  if (btn) { radarMode = btn.dataset.radarMode; renderRadar(); }
+}
+
+function onModalClick(e) {
+  if (e.target.id === 'modal' || e.target.closest('.modal-close')) { closeModal(); return; }
+  const setBtn = e.target.closest('[data-set-target]');
+  if (setBtn) { setTarget(setBtn.dataset.setTarget); return; }
+  const moveBtn = e.target.closest('[data-move]');
+  if (moveBtn) { moveToPosition(moveBtn.dataset.move); return; }
+  if (e.target.closest('[data-goto-plan]')) { closeModal(); activeTab = 'plan'; switchTab('plan'); return; }
+}
+
+/* ============================================================
+   ROUTER + INIT
+   ============================================================ */
+function route() {
+  const mode = getMode();
+  if (mode === 'auth') return showAuth('login');
+  if (mode === 'admin') return showAdmin();
+  const user = getCurrentUser();
+  if (!user) { logout(); return; }
+  if (!user.roleId || !user.gradeId) return startWizard(user.id, false);
+  showUserApp();
+}
+
+function init() {
+  db = loadDb();
+  session = loadSession();
+
+  // Header
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    if (confirm('Выйти из системы?')) logout();
+  });
+  document.getElementById('edit-profile-btn').addEventListener('click', () => {
+    const uid = getCurrentUserId();
+    if (uid) startWizard(uid, true);
+  });
+  document.querySelectorAll('.tab').forEach(btn =>
+    btn.addEventListener('click', () => { activeTab = btn.dataset.tab; switchTab(activeTab); })
+  );
+
+  // Auth form handlers (делегирование)
+  document.getElementById('auth').addEventListener('submit', onAuthSubmit);
+  document.getElementById('auth').addEventListener('click', e => {
+    const switchBtn = e.target.closest('[data-auth-mode]');
+    if (switchBtn) showAuth(switchBtn.dataset.authMode);
+  });
+
+  // Wizard
+  document.getElementById('onboarding').addEventListener('click', onWizardClick);
+  document.getElementById('onboarding').addEventListener('input', onWizardInput);
+
+  // Admin
+  document.getElementById('admin').addEventListener('click', onAdminClick);
+  document.getElementById('admin').addEventListener('change', onAdminChange);
+
+  // Employee views
+  document.getElementById('profile').addEventListener('click', onProfileClick);
+  document.getElementById('plan').addEventListener('click', onPlanClick);
+  document.getElementById('radar').addEventListener('click', onRadarClick);
+  document.getElementById('map').addEventListener('click', e => {
+    const cell = e.target.closest('[data-pos]');
+    if (cell) openPositionModal(cell.dataset.pos);
+  });
+
+  // Modal
+  document.getElementById('modal').addEventListener('click', onModalClick);
+
+  // View as exit
+  document.addEventListener('click', e => {
+    if (e.target.closest('#exit-view-as')) exitViewAs();
+  });
+
+  // Esc
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+  route();
+}
+
+init();
