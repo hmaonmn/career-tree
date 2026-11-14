@@ -71,7 +71,7 @@ const SKILL_SHORT_NAMES = {
 
 const TRACKS = {
   backend: {
-    name: 'Backend', icon: '⚙️', color: '#3b82f6',
+    name: 'Backend', icon: '⚙️', color: '#0057FF',
     skills: {
       algorithms: [35,55,75,85,95], api_design: [30,55,75,88,95],
       databases: [30,55,75,85,92], architecture: [15,40,65,85,95],
@@ -80,7 +80,7 @@ const TRACKS = {
     },
   },
   frontend: {
-    name: 'Frontend', icon: '🎨', color: '#ec4899',
+    name: 'Frontend', icon: '🎨', color: '#00C2FF',
     skills: {
       html_css: [35,60,80,88,92], js_ts: [30,60,80,90,95],
       ui_ux: [20,45,70,85,92], frontend_perf: [15,40,68,86,94],
@@ -89,7 +89,7 @@ const TRACKS = {
     },
   },
   data: {
-    name: 'Data', icon: '📊', color: '#22d3ee',
+    name: 'Data', icon: '📊', color: '#0EA5E9',
     skills: {
       sql: [30,60,80,90,95], python: [25,55,78,88,95], ml: [15,35,65,85,95],
       statistics: [20,45,70,85,92], visualization: [20,45,68,82,90],
@@ -97,7 +97,7 @@ const TRACKS = {
     },
   },
   devops: {
-    name: 'DevOps', icon: '🔧', color: '#f59e0b',
+    name: 'DevOps', icon: '🔧', color: '#0057FF',
     skills: {
       linux: [35,60,80,90,95], ci_cd: [25,55,78,88,94], k8s: [15,40,70,88,96],
       cloud: [20,45,72,88,95], monitoring: [20,45,70,86,93],
@@ -105,7 +105,7 @@ const TRACKS = {
     },
   },
   product: {
-    name: 'Product', icon: '📦', color: '#a855f7',
+    name: 'Product', icon: '📦', color: '#00C2FF',
     skills: {
       discovery: [20,45,70,88,95], analytics: [20,45,70,86,94],
       roadmap: [15,40,68,86,95], stakeholder: [20,45,70,88,96],
@@ -114,7 +114,7 @@ const TRACKS = {
     },
   },
   qa: {
-    name: 'QA', icon: '🔍', color: '#22c55e',
+    name: 'QA', icon: '🔍', color: '#10B981',
     skills: {
       test_design: [30,55,78,88,94], automation: [20,45,72,88,95],
       api_testing: [25,50,75,86,92], perf_testing: [15,35,65,85,92],
